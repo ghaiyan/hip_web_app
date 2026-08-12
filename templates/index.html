@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="zh-CN" id="html-root">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="page-title">髋关节关键点检测与参数计算系统 / Hip Keypoint Detection & Parameter System</title>
+<style>
+/* ========== Reset & Variables ========== */
+*, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+
+:root {
+  --bg: #0f172a;
+  --bg-card: #1e293b;
+  --bg-input: #334155;
+  --border: #475569;
+  --text: #e2e8f0;
+  --text-dim: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #38bdf8;
+  --accent2: #818cf8;
+  --green: #4ade80;
+  --red: #f87171;
+  --amber: #fbbf24;
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* ========== Header ========== */
+.header {
+  background: linear-gradient(135deg, var(--bg-card), #1a1a3e);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px);
+}
+.header h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.3px; }
+.header h1 span { color: var(--accent); }
+.status-dot {
+  width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px;
+}
+.status-dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.status-dot.offline { background: var(--red); }
+
+/* ========== Language Toggle ========== */
+.lang-toggle {
+  background: var(--bg-input); border: 1px solid var(--border);
+  color: var(--text); padding: 5px 14px; border-radius: 20px;
+  font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; margin-left: 12px;
+}
+.lang-toggle:hover { border-color: var(--accent); }
+
+/* ========== Layout ========== */
+.container { max-width: 1440px; margin: 0 auto; padding: 20px 24px; }
+.grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
+
+/* ========== Cards ========== */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
+}
+.card-title {
+  font-size: 0.95rem; font-weight: 600; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.card-title .icon { font-size: 1.1rem; }
+
+/* ========== Form Elements ========== */
+.form-group { margin-bottom: 12px; }
+.form-group label {
+  display: block; font-size: 0.8rem; color: var(--text-dim);
+  margin-bottom: 4px; font-weight: 500;
+}
+select, input[type="text"] {
+  width: 100%; padding: 9px 12px; border-radius: var(--radius-sm);
+  background: var(--bg-input); border: 1px solid var(--border);
+  color: var(--text); font-size: 0.85rem; outline: none;
+  transition: border-color 0.2s;
+}
+select:focus, input:focus { border-color: var(--accent); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 18px; border-radius: var(--radius-sm); border: none;
+  font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.btn-primary { background: var(--accent); color: #0f172a; }
+.btn-primary:hover { background: #7dd3fc; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--accent); }
+.btn-full { width: 100%; margin-top: 6px; }
+
+/* ========== Upload Zone ========== */
+.upload-zone {
+  border: 2px dashed var(--border); border-radius: var(--radius);
+  padding: 36px 20px; text-align: center; cursor: pointer;
+  transition: all 0.2s; background: var(--bg-card); margin-bottom: 14px;
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--accent); background: rgba(56, 189, 248, 0.05);
+}
+.upload-zone .upload-icon { font-size: 2.2rem; margin-bottom: 8px; }
+.upload-zone p { color: var(--text-dim); font-size: 0.85rem; }
+.upload-zone .hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+
+/* ========== Viz + Params Row ========== */
+.viz-params-row {
+  display: grid; grid-template-columns: 1fr 360px; gap: 16px; align-items: start;
+}
+.viz-card { min-height: 400px; }
+.params-card {
+  min-width: 340px; max-height: 80vh; overflow-y: auto;
+  margin-bottom: 0 !important;
+}
+
+/* ========== Result Panel ========== */
+.result-panel { display: none; }
+.result-panel.active { display: block; }
+
+.result-image {
+  width: 100%; border-radius: var(--radius); border: 1px solid var(--border);
+  image-rendering: auto; max-height: 75vh; object-fit: contain;
+  background: #000;
+}
+.viewer-toolbar {
+  display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
+}
+
+/* ========== Parameter Table ========== */
+.param-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.param-table th, .param-table td {
+  text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border);
+}
+.param-table th {
+  color: var(--text-dim); font-weight: 600; font-size: 0.75rem;
+}
+.param-table .val { font-weight: 600; font-variant-numeric: tabular-nums; }
+.param-table .val.normal { color: var(--green); }
+.param-table .val.low { color: var(--amber); }
+.param-table .val.high { color: var(--red); }
+.param-badge {
+  display: inline-block; padding: 1px 7px; border-radius: 10px;
+  font-size: 0.7rem; font-weight: 600;
+}
+.param-badge.normal { background: rgba(74, 222, 128, 0.15); color: var(--green); }
+.param-badge.low { background: rgba(251, 191, 36, 0.15); color: var(--amber); }
+.param-badge.high { background: rgba(248, 113, 113, 0.15); color: var(--red); }
+
+/* ========== Warnings ========== */
+.warnings { margin-top: 10px; }
+.warning-item {
+  background: rgba(251, 191, 36, 0.1); border-left: 3px solid var(--amber);
+  padding: 6px 10px; margin-bottom: 4px; font-size: 0.78rem; border-radius: 0 4px 4px 0;
+}
+
+/* ========== Info Pills ========== */
+.info-row {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+}
+.info-pill {
+  background: var(--bg-input); padding: 3px 10px; border-radius: 12px;
+  font-size: 0.75rem; color: var(--text-dim);
+}
+
+/* ========== Loading ========== */
+.loading-overlay {
+  display: none; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.7);
+  justify-content: center; align-items: center; border-radius: var(--radius); z-index: 10;
+}
+.loading-overlay.active { display: flex; }
+.spinner {
+  width: 36px; height: 36px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ========== Responsive ========== */
+@media (max-width: 900px) {
+  .grid { grid-template-columns: 1fr; }
+  .viz-params-row { grid-template-columns: 1fr; }
+  .params-card { max-height: none; }
+  .header { padding: 10px 16px; flex-wrap: wrap; gap: 8px; }
+  .container { padding: 12px; }
+}
+
+/* ========== Keypoint legend ========== */
+.legend-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; font-size: 0.73rem;
+  max-height: 280px; overflow-y: auto;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; padding: 2px 0; }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ========== Tooltip ========== */
+.tooltip { font-size: 0.73rem; color: var(--text-muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ===== Header ===== -->
+<header class="header">
+  <h1><span>DRFNet</span> <span data-t="header_title">髋关节关键点检测与参数计算系统</span></h1>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span id="model-status">
+      <span class="status-dot offline"></span> <span data-t="status_not_loaded">模型未加载</span>
+    </span>
+    <span style="color:var(--text-muted);font-size:0.78rem;" id="device-info"></span>
+    <button class="lang-toggle" id="lang-btn" onclick="toggleLang()">EN</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="grid">
+
+    <!-- ========== Left: Control Panel ========== -->
+    <aside>
+
+      <!-- Model Load -->
+      <div class="card">
+        <div class="card-title"><span class="icon">&#9881;</span> <span data-t="card_model_title">模型加载</span></div>
+        <div class="form-group">
+          <label data-t="label_model_type">模型类型</label>
+          <select id="model-type">
+            <option value="drfnet">DRFNet (Ablation Exp. C)</option>
+            <option value="yolov8">YOLOv8-Pose</option>
+            <option value="simplebaseline">SimpleBaseline</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label data-t="label_weights_path">权重文件路径</label>
+          <input type="text" id="weights-path" data-t-placeholder="placeholder_weights" placeholder="./weights/drfnet_C_best.pth">
+        </div>
+        <div class="form-group">
+          <label data-t="label_device">推理设备</label>
+          <select id="device-select">
+            <option value="cuda" selected>CUDA (GPU)</option>
+            <option value="cpu">CPU</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-full" id="btn-load" onclick="loadModel()">
+          <span data-t="btn_load_model">加载模型</span>
+        </button>
+        <div class="tooltip" style="margin-top:8px;" data-t="tooltip_load">
+          确保权重文件路径正确，且依赖已安装 (torch, torchvision, ultralytics 可选)
+        </div>
+      </div>
+
+      <!-- Image Upload -->
+      <div class="card">
+        <div class="card-title"><span class="icon">&#128228;</span> <span data-t="card_upload_title">影像上传</span></div>
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+          <div class="upload-icon">&#128100;</div>
+          <p data-t="upload_click">点击或拖拽上传骨盆正位 X 光片</p>
+          <p class="hint" data-t="upload_hint">支持 JPG / PNG / DICOM 截图</p>
+        </div>
+        <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileSelect(event)">
+        <button class="btn btn-primary btn-full" id="btn-detect" onclick="runDetection()" disabled>
+          <span data-t="btn_detect">开始检测与计算</span>
+        </button>
+      </div>
+
+      <!-- Keypoint Legend -->
+      <div class="card">
+        <div class="card-title"><span class="icon">&#128270;</span> <span data-t="card_legend_title">关键点图例 (19点)</span></div>
+        <div class="legend-grid" id="legend-grid"></div>
+      </div>
+    </aside>
+
+    <!-- ========== Right: Result Display ========== -->
+    <main style="position:relative;">
+      <div class="viz-params-row">
+        <!-- Visualization Card -->
+        <div class="card viz-card" style="position:relative;">
+          <div class="card-title"><span class="icon">&#128269;</span> <span data-t="card_viz_title">检测结果可视化</span></div>
+          <!-- Placeholder -->
+          <div id="placeholder" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+            <div style="font-size:3rem;margin-bottom:12px;">&#128206;</div>
+            <p data-t="placeholder_text">上传影像后点击"开始检测"查看结果</p>
+          </div>
+          <!-- Result Image -->
+          <img id="result-image" class="result-image result-panel" alt="Detection Result">
+          <!-- Loading Overlay -->
+          <div class="loading-overlay" id="loading-overlay">
+            <div style="text-align:center;">
+              <div class="spinner" style="margin:0 auto 12px;"></div>
+              <p style="font-size:0.85rem;color:var(--text-dim);" data-t="loading_text">模型推理中...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Parameter Results (right side of visualization) -->
+        <div class="card result-panel params-card" id="result-panel">
+          <div class="card-title"><span class="icon">&#128203;</span> <span data-t="card_result_title">临床参数计算结果</span></div>
+          <div class="info-row" id="result-meta"></div>
+          <table class="param-table">
+            <thead>
+              <tr>
+                <th data-t="th_param">参数</th>
+                <th data-t="th_value">测量值</th>
+                <th data-t="th_reference">参考范围</th>
+                <th data-t="th_status">状态</th>
+              </tr>
+            </thead>
+            <tbody id="param-tbody"></tbody>
+          </table>
+          <div class="warnings" id="warnings-container"></div>
+        </div>
+      </div>
+
+      <!-- Original Image -->
+      <div class="card result-panel" id="original-card">
+        <div class="card-title"><span class="icon">&#128247;</span> <span data-t="card_original_title">原始影像</span></div>
+        <img id="original-image" style="width:100%;max-height:70vh;object-fit:contain;border-radius:6px;background:#000;" alt="Original Image">
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+// ========== Translation Dictionary ==========
+const T = {
+  zh: {
+    header_title: "髋关节关键点检测与参数计算系统",
+    status_not_loaded: "模型未加载",
+    status_loaded: "模型已就绪: {0}",
+    status_device: "设备: {0}",
+    card_model_title: "模型加载",
+    label_model_type: "模型类型",
+    label_weights_path: "权重文件路径",
+    label_device: "推理设备",
+    btn_load_model: "加载模型",
+    btn_load_model_loading: "加载中...",
+    btn_detect: "开始检测与计算",
+    btn_detect_running: "检测中...",
+    tooltip_load: "确保权重文件路径正确，且依赖已安装 (torch, torchvision, ultralytics 可选)",
+    card_upload_title: "影像上传",
+    upload_click: "点击或拖拽上传骨盆正位 X 光片",
+    upload_hint: "支持 JPG / PNG / DICOM 截图",
+    card_result_title: "临床参数计算结果",
+    th_param: "参数",
+    th_value: "测量值",
+    th_reference: "参考范围",
+    th_status: "状态",
+    card_legend_title: "关键点图例 (19点)",
+    card_viz_title: "检测结果可视化",
+    placeholder_text: '上传影像后点击"开始检测"查看结果',
+    card_original_title: "原始影像",
+    loading_text: "模型推理中...",
+    alert_select_file: "请先上传影像图片",
+    alert_load_success: "模型加载成功!",
+    alert_load_fail: "加载失败: {0}",
+    alert_detect_fail: "检测失败: {0}",
+    alert_request_fail: "请求失败: {0}",
+    side_left: "左侧置换",
+    side_right: "右侧置换",
+    side_both: "双侧置换",
+    side_unknown: "未检测",
+    status_low: "\u2193 偏低",
+    status_high: "\u2191 偏高",
+    status_normal: "\u2713 正常",
+    ref_range_sep: "~",
+    unit_px: "px",
+    unit_deg: "\u00B0",
+    warn_no_param: "未计算出参数",
+    // Keypoint names (zh)
+    kp: [
+      "P1 左泪滴", "P2 右泪滴", "P3 耻骨联合",
+      "P4 左股骨头心", "P5 左颈中点", "P6 左干近端", "P7 左干远端",
+      "P8 左臼杯外上", "P9 左臼杯内下", "P10 左臼杯前缘", "P11 左臼杯后缘",
+      "P12 右股骨头心", "P13 右颈中点", "P14 右干近端", "P15 右干远端",
+      "P16 右臼杯外上", "P17 右臼杯内下", "P18 右臼杯前缘", "P19 右臼杯后缘",
+    ],
+    // Parameter display names (zh)
+    p_abduction: "臼杯外展角",
+    p_anteversion: "臼杯前倾角",
+    p_neck_shaft: "颈干角",
+    p_femoral_offset: "股骨偏心距",
+    p_leg_length: "下肢长度差",
+    p_leg_length_px: "下肢长度差(px)",
+    ref_note_px: "需换算",
+    warnings: {
+      baseline_missing: "泪滴关键点(P1/P2)缺失，无法建立骨盆基准线",
+      implant_side_unknown: "未检测到臼杯关键点，无法判断假体侧",
+      abduction_missing: "[{0}] 臼杯长轴关键点缺失，无法计算外展角",
+      anteversion_missing: "[{0}] 臼杯短轴关键点缺失，无法计算前倾角",
+      neck_shaft_missing: "[{0}] 股骨颈/干关键点缺失，无法计算颈干角",
+      femoral_offset_missing: "[{0}] 偏心距关键点缺失",
+      leg_length_missing: "缺少双侧小转子关键点(P6/P14)，无法计算下肢长度差",
+    },
+  },
+  en: {
+    header_title: "Hip Keypoint Detection & Clinical Parameter System",
+    status_not_loaded: "Model not loaded",
+    status_loaded: "Model ready: {0}",
+    status_device: "Device: {0}",
+    card_model_title: "Model Loading",
+    label_model_type: "Model Type",
+    label_weights_path: "Weights File Path",
+    label_device: "Inference Device",
+    btn_load_model: "Load Model",
+    btn_load_model_loading: "Loading...",
+    btn_detect: "Start Detection & Calculation",
+    btn_detect_running: "Running...",
+    tooltip_load: "Ensure weights path is correct and dependencies are installed (torch, torchvision, ultralytics optional)",
+    card_upload_title: "Image Upload",
+    upload_click: "Click or drag to upload AP pelvic X-ray",
+    upload_hint: "Supports JPG / PNG / DICOM screenshot",
+    card_result_title: "Clinical Parameter Results",
+    th_param: "Parameter",
+    th_value: "Value",
+    th_reference: "Reference Range",
+    th_status: "Status",
+    card_legend_title: "Keypoint Legend (19 pts)",
+    card_viz_title: "Detection Visualization",
+    placeholder_text: 'Upload an image and click "Start Detection" to view results',
+    card_original_title: "Original Image",
+    loading_text: "Model inferring...",
+    alert_select_file: "Please upload an image first",
+    alert_load_success: "Model loaded successfully!",
+    alert_load_fail: "Load failed: {0}",
+    alert_detect_fail: "Detection failed: {0}",
+    alert_request_fail: "Request failed: {0}",
+    side_left: "Left-side implant",
+    side_right: "Right-side implant",
+    side_both: "Bilateral implants",
+    side_unknown: "Not detected",
+    status_low: "\u2193 Low",
+    status_high: "\u2191 High",
+    status_normal: "\u2713 Normal",
+    ref_range_sep: "~",
+    unit_px: "px",
+    unit_deg: "\u00B0",
+    warn_no_param: "No parameters calculated",
+    // Keypoint names (en)
+    kp: [
+      "P1 L-teardrop", "P2 R-teardrop", "P3 Pubic symphysis",
+      "P4 L-femoral head", "P5 L-neck mid", "P6 L-shaft prox", "P7 L-shaft dist",
+      "P8 L-cup outer-up", "P9 L-cup inner-low", "P10 L-cup ant", "P11 L-cup post",
+      "P12 R-femoral head", "P13 R-neck mid", "P14 R-shaft prox", "P15 R-shaft dist",
+      "P16 R-cup outer-up", "P17 R-cup inner-low", "P18 R-cup ant", "P19 R-cup post",
+    ],
+    // Parameter display names (en)
+    p_abduction: "Cup Abduction Angle",
+    p_anteversion: "Cup Anteversion Angle",
+    p_neck_shaft: "Neck-Shaft Angle",
+    p_femoral_offset: "Femoral Offset",
+    p_leg_length: "Leg Length Discrepancy",
+    p_leg_length_px: "Leg Length Diff (px)",
+    warnings: {
+      baseline_missing: "Teardrop keypoints (P1/P2) missing, unable to establish pelvic baseline",
+      implant_side_unknown: "Cup keypoints not detected, unable to determine implant side",
+      abduction_missing: "[{0}] Cup long-axis keypoints missing, unable to calculate abduction angle",
+      anteversion_missing: "[{0}] Cup short-axis keypoints missing, unable to calculate anteversion angle",
+      neck_shaft_missing: "[{0}] Femoral neck/shaft keypoints missing, unable to calculate neck-shaft angle",
+      femoral_offset_missing: "[{0}] Femoral offset keypoints missing",
+      leg_length_missing: "Missing bilateral lesser trochanter keypoints (P6/P14), unable to calculate leg length discrepancy",
+    },
+    ref_note_px: "needs conversion",
+  }
+};
+
+let lang = 'zh';  // current language
+
+function t(key, ...args) {
+  let s = (T[lang] && T[lang][key]) ? T[lang][key] : (T['zh'][key] || key);
+  args.forEach((a, i) => { s = s.replace('{'+i+'}', a); });
+  return s;
+}
+
+function toggleLang() {
+  lang = lang === 'zh' ? 'en' : 'zh';
+  document.getElementById('lang-btn').textContent = lang === 'zh' ? 'EN' : 'ZH';
+  document.getElementById('html-root').lang = lang === 'zh' ? 'zh-CN' : 'en';
+  applyTranslations();
+  buildLegend();       // rebuild legend with current language
+  // re-render results if already shown
+  if (window._lastResultData) renderResults(window._lastResultData);
+}
+
+function applyTranslations() {
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const key = el.getAttribute('data-t');
+    if (key) el.textContent = t(key);
+  });
+  document.querySelectorAll('[data-t-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-t-placeholder');
+    if (key) el.placeholder = t(key);
+  });
+}
+
+// ========== Keypoint colors (shared) ==========
+const KP_COLORS = {
+  0:[255,255,0],1:[255,255,0],2:[200,200,255],3:[255,128,0],4:[255,128,0],5:[255,80,80],6:[255,80,80],
+  7:[0,255,128],8:[0,255,128],9:[0,200,255],10:[0,200,255],
+  11:[255,160,80],12:[255,160,80],13:[255,130,130],14:[255,130,130],
+  15:[100,255,180],16:[100,255,180],17:[100,220,255],18:[100,220,255],
+};
+
+// ========== Current selected file ==========
+let selectedFile = null;
+
+// ========== Init ==========
+checkStatus();
+initUploadZone();
+buildLegend();
+
+// ========== Status check ==========
+async function checkStatus() {
+  try {
+    const resp = await fetch('/api/status');
+    const data = await resp.json();
+    updateModelStatus(data.model_loaded, data.model_type, data.device);
+  } catch (e) {
+    updateModelStatus(false, null, null);
+  }
+}
+
+function updateModelStatus(loaded, type, device) {
+  const el = document.getElementById('model-status');
+  const dotEl = el.querySelector('.status-dot');
+  const devEl = document.getElementById('device-info');
+  if (loaded) {
+    dotEl.className = 'status-dot online';
+    el.innerHTML = '<span class="status-dot online"></span> ' + t('status_loaded', type);
+    devEl.textContent = device ? t('status_device', device) : '';
+    document.getElementById('btn-detect').disabled = false;
+  } else {
+    dotEl.className = 'status-dot offline';
+    el.innerHTML = '<span class="status-dot offline"></span> ' + t('status_not_loaded');
+    devEl.textContent = '';
+    document.getElementById('btn-detect').disabled = true;
+  }
+  // re-apply translations to dynamically set text
+  applyTranslations();
+}
+
+// ========== Model load ==========
+async function loadModel() {
+  const btn = document.getElementById('btn-load');
+  btn.disabled = true;
+  btn.querySelector('[data-t]').textContent = t('btn_load_model_loading');
+
+  const formData = new FormData();
+  formData.append('model_type', document.getElementById('model-type').value);
+  formData.append('weights_path', document.getElementById('weights-path').value.trim());
+  formData.append('device', document.getElementById('device-select').value);
+
+  try {
+    const resp = await fetch('/api/load_model', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (resp.ok) {
+      updateModelStatus(true, data.model_type, data.device);
+      alert(t('alert_load_success'));
+    } else {
+      alert(t('alert_load_fail', data.detail || JSON.stringify(data)));
+    }
+  } catch (e) {
+    alert(t('alert_request_fail', e.message));
+  } finally {
+    btn.disabled = false;
+    btn.querySelector('[data-t]').textContent = t('btn_load_model');
+  }
+}
+
+// ========== Upload ==========
+function initUploadZone() {
+  const zone = document.getElementById('upload-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) {
+      setFile(e.dataTransfer.files[0]);
+    }
+  });
+}
+
+function handleFileSelect(event) {
+  if (event.target.files.length > 0) {
+    setFile(event.target.files[0]);
+  }
+}
+
+function setFile(file) {
+  selectedFile = file;
+  const zone = document.getElementById('upload-zone');
+  zone.innerHTML = `
+    <div style="font-size:1.5rem;margin-bottom:4px;">&#128206;</div>
+    <p style="font-weight:600;">${file.name}</p>
+    <p class="hint">${(file.size / 1024).toFixed(0)} KB &middot; ${file.type}</p>
+  `;
+
+  // Preview original image
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('original-image').src = e.target.result;
+    document.getElementById('original-card').classList.add('active');
+    document.getElementById('placeholder').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ========== Detection ==========
+async function runDetection() {
+  if (!selectedFile) { alert(t('alert_select_file')); return; }
+
+  document.getElementById('loading-overlay').classList.add('active');
+  document.getElementById('btn-detect').disabled = true;
+  document.querySelector('#btn-detect [data-t]').textContent = t('btn_detect_running');
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try {
+    const resp = await fetch('/api/detect', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      alert(t('alert_detect_fail', data.detail || JSON.stringify(data)));
+      return;
+    }
+
+    // Show result image
+    const resultImg = document.getElementById('result-image');
+    resultImg.src = 'data:image/png;base64,' + data.visualized_base64;
+    resultImg.classList.add('active');
+    document.getElementById('placeholder').style.display = 'none';
+
+    // Render parameter results
+    window._lastResultData = data;
+    renderResults(data);
+
+  } catch (e) {
+    alert(t('alert_request_fail', e.message));
+  } finally {
+    document.getElementById('loading-overlay').classList.remove('active');
+    document.getElementById('btn-detect').disabled = false;
+    document.querySelector('#btn-detect [data-t]').textContent = t('btn_detect');
+  }
+}
+
+// ========== Render Results ==========
+function renderResults(data) {
+  const panel = document.getElementById('result-panel');
+  panel.classList.add('active');
+
+  // Meta info
+  const meta = document.getElementById('result-meta');
+  let sideLabel = data.implant_side;
+  if (sideLabel === 'L') sideLabel = t('side_left');
+  else if (sideLabel === 'R') sideLabel = t('side_right');
+  else if (sideLabel === 'both') sideLabel = t('side_both');
+  else sideLabel = t('side_unknown');
+
+  meta.innerHTML = `
+    <span class="info-pill">&#9202; ${data.inference_time_ms} ms</span>
+    <span class="info-pill">&#128100; ${sideLabel}</span>
+    <span class="info-pill">&#128206; ${data.image_size[0]}&times;${data.image_size[1]}</span>
+    <span class="info-pill">&#128736; ${data.model_type}</span>
+  `;
+
+  // Parameter table
+  const tbody = document.getElementById('param-tbody');
+  tbody.innerHTML = '';
+
+  if (data.parameters && Object.keys(data.parameters).length > 0) {
+    const refMap = data.reference || {};
+    // Build display name mapping
+    const paramNameMap = {
+      'abduction_angle_deg': t('p_abduction'),
+      'anteversion_angle_deg': t('p_anteversion'),
+      'neck_shaft_angle_deg': t('p_neck_shaft'),
+      'femoral_offset_px': t('p_femoral_offset'),
+      'leg_length_diff_px': t('p_leg_length'),
+    };
+
+    for (const [key, val] of Object.entries(data.parameters)) {
+      if (key === 'baseline_length_px') continue;
+
+      // Match reference range key
+      let refKey = null;
+      if (key.includes('abduction')) refKey = 'abduction_angle';
+      else if (key.includes('anteversion')) refKey = 'anteversion_angle';
+      else if (key.includes('neck_shaft')) refKey = 'neck_shaft_angle';
+      else if (key.includes('femoral_offset')) refKey = 'femoral_offset';
+      else if (key.includes('leg_length_diff')) refKey = 'leg_length_diff';
+
+      const ref = refKey ? refMap[refKey] : null;
+      const refRange = ref && ref.range ? `${ref.range[0]}${t('ref_range_sep')}${ref.range[1]} ${ref.unit}` : '\u2014';
+      const unit = ref ? ref.unit : (key.includes('px') ? t('unit_px') : t('unit_deg'));
+
+      let statusClass = '';
+      let statusText = '\u2014';
+      if (ref && ref.range) {
+        const [lo, hi] = ref.range;
+        if (val < lo) { statusClass = 'low'; statusText = t('status_low'); }
+        else if (val > hi) { statusClass = 'high'; statusText = t('status_high'); }
+        else { statusClass = 'normal'; statusText = t('status_normal'); }
+      }
+
+      const displayName = paramNameMap[key] || (ref ? (lang === 'en' ? ref.name_en : ref.name_cn) : key);
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${displayName}</td>
+          <td class="val ${statusClass}">${val} ${unit}</td>
+          <td style="color:var(--text-dim);">${refRange}</td>
+          <td><span class="param-badge ${statusClass}">${statusText}</span></td>
+        </tr>`;
+    }
+  } else {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:16px;">${t('warn_no_param')}</td></tr>`;
+  }
+
+  // Warnings
+  const warnContainer = document.getElementById('warnings-container');
+  if (data.warnings && data.warnings.length > 0) {
+    warnContainer.innerHTML = data.warnings.map(w => {
+        const tpl = (T[lang] && T[lang].warnings && T[lang].warnings[w.key]) ? T[lang].warnings[w.key] : w.key;
+        let msg = tpl;
+        (w.args || []).forEach((a, i) => { msg = msg.replace(`{${i}}`, a); });
+        return `<div class="warning-item">&#9888; ${msg}</div>`;
+    }).join('');
+  } else {
+    warnContainer.innerHTML = '';
+  }
+}
+
+// ========== Build Legend ==========
+function buildLegend() {
+  const grid = document.getElementById('legend-grid');
+  grid.innerHTML = '';
+  const names = T[lang].kp;
+  for (let i = 0; i < 19; i++) {
+    const [r,g,b] = KP_COLORS[i];
+    grid.innerHTML += `<div class="legend-item"><span class="legend-dot" style="background:rgb(${r},${g},${b});"></span> ${names[i]}</div>`;
+  }
+}
+</script>
+</body>
+</html>
