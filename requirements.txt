@@ -1,0 +1,21 @@
+# 髋关节关键点检测与参数计算 Web 系统
+# Python >= 3.10
+
+# 核心
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.24.0
+pillow>=9.4.0
+opencv-python>=4.8.0
+
+# Web 框架
+fastapi>=0.100.0
+uvicorn>=0.22.0
+python-multipart>=0.0.6
+
+# YOLOv8 (可选, 仅使用 yolov8 模型时需要)
+# 要求 >=8.4.0: 内部 torch_safe_load 正确处理 PyTorch 2.6+ 的 weights_only=True 默认行为
+ultralytics>=8.4.0
+
+# 图像增强 (可选, 仅训练时需要)
+albumentations>=1.3.0
